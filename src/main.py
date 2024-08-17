@@ -128,6 +128,12 @@ class VotingScreen(Screen):
 
             self.create_image(x, y, image=candidate_image)
             self.create_text(x, y + 200, text=candidates[i][1], font=("Helvetica", 24))
+            
+            def vote_for_this_candidate(candidate_id=candidates[i][0]):
+                self.vote(candidate_id)
+
+            voteButton = tk.Button(self, text="Vote", font=("Helvetica", 18), command=lambda candidate_id=candidates[i][0]: vote_for_this_candidate(candidate_id))
+            self.create_window(x, screen_height / 2 + 250, window=voteButton)
         self.configure(background='#1c2d5c')
 
 class ResultsScreen(Screen):
@@ -160,6 +166,6 @@ resultsScreen = ResultsScreen(app, onQuitButtonClicked=lambda: welcomeScreen.dis
 
 welcomeScreen.display()
 votingScreen.display()
-resultsScreen.display()
+#resultsScreen.display()
 
 app.mainloop()
