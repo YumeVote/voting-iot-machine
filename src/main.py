@@ -73,7 +73,7 @@ def arduino_serial_input(comport, baudrate, votingScreen, invalidCitizenCardScre
                     global current_citizen_private_key
 
                     current_citizen_hash = actualMetaData_json["hash"]
-                    current_citizen_private_key = actualMetaData_json["private_key"]
+                    current_citizen_private_key = base64.b64decode(actualMetaData_json["private_key"])
                     
                     invalidCitizenCardScreen.display()
                 elif data.startswith("ACCESS_GRANTED"):
@@ -279,8 +279,8 @@ errorScreen = ErrorScreen(app, onQuitButtonClicked=lambda: welcomeScreen.display
 resultsScreen = ResultsScreen(app, onQuitButtonClicked=lambda: welcomeScreen.display() and reset_citizen_data())
 votingScreen = VotingScreen(app, loadingScreen=loadingScreen, resultsScreen=resultsScreen, errorScreen=errorScreen)
 
-welcomeScreen.display()
-#votingScreen.display()
+#welcomeScreen.display()
+votingScreen.display()
 #resultsScreen.display()
 
 arduino_serial_input('/dev/cu.usbserial-FTB6SPL3', 9600, votingScreen, errorScreen, loadingScreen)
