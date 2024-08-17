@@ -1,0 +1,4 @@
+.env
+.venv/
+signature-test.py
+temp/
