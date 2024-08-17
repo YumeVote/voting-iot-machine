@@ -283,7 +283,7 @@ welcomeScreen.display()
 #votingScreen.display()
 #resultsScreen.display()
 
-arduino_serial_input('/dev/cu.usbserial-FTB6SPL3', 9600, votingScreen, invalidCitizenCardScreen, loadingScreen)
+arduino_serial_input('/dev/cu.usbserial-FTB6SPL3', 9600, votingScreen, errorScreen, loadingScreen)
 
 def onQuit():
     global arduino_serial_input_thread
