@@ -24,6 +24,7 @@ for i, candidate in enumerate(candidates):
     with open(f"tempimg/{candidate[0]}.jpg", "wb") as f:
         f.write(raw_data)
 
+gif_animation_started = False
 
 class App(tk.Tk):
     screens = []
@@ -80,7 +81,10 @@ class WelcomeScreen(Screen):
             self.master.after(50, update_gif_frame, (frame_index + 1) % gif_image.n_frames)
 
         # Start the GIF animation
-        update_gif_frame(0)
+        global gif_animation_started
+        if not gif_animation_started:
+            gif_animation_started = True
+            update_gif_frame(0)
 
         self.create_text(screen_width / 2, screen_height / 2 - 50, text="Devmatch Government 2024 Election", font=("Helvetica", 32))
         self.create_text(screen_width / 2, screen_height / 2, text="Please insert your card to vote", font=("Helvetica", 24))
@@ -126,11 +130,36 @@ class VotingScreen(Screen):
             self.create_text(x, y + 200, text=candidates[i][1], font=("Helvetica", 24))
         self.configure(background='#1c2d5c')
 
+class ResultsScreen(Screen):
+    def __init__(self, master, onQuitButtonClicked):
+        Screen.__init__(self, master)
+        self.app = master
+        self.onQuitButtonClicked = onQuitButtonClicked
+    
+    def display(self):
+        self.app.close_all_screens()
+        self.pack(fill=tk.BOTH, expand=True)
+
+        # Get the width and height of the screen
+        screen_width = self.master.winfo_screenwidth()
+        screen_height = self.master.winfo_screenheight()
+
+        self.create_text(screen_width / 2, screen_height/2 - 200, text="Thank you for your vote!", font=("Helvetica", 32))
+        self.create_text(screen_width / 2, screen_height/2 - 150, text="For future reference, your vote id is displayed below (which can be used on the main website for verification)", font=("Helvetica", 24))
+        self.create_text(screen_width / 2, screen_height/2, text="1234567890", font=("Helvetica", 64))
+        
+        quitButton = tk.Button(self, text="Quit", font=("Helvetica", 32), command=lambda: self.onQuitButtonClicked())
+        self.create_window(screen_width / 2, screen_height / 2 + 170, window=quitButton)
+
+        self.configure(background='#1c2d5c')
+
 app = App()
 welcomeScreen = WelcomeScreen(app)
 votingScreen = VotingScreen(app)
+resultsScreen = ResultsScreen(app, onQuitButtonClicked=lambda: welcomeScreen.display())
 
 welcomeScreen.display()
 votingScreen.display()
+resultsScreen.display()
 
 app.mainloop()
