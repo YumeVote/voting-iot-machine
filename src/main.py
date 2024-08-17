@@ -1,9 +1,10 @@
 import io
+import json
 from PIL import Image, ImageTk
 from dotenv import load_dotenv
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.backends import default_backend
-from cryptography.hazmat.primitives.asymmetric import padding
+from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives import hashes
 
 import tkinter as tk
@@ -51,12 +52,8 @@ def sign_message(message):
         backend=default_backend()
     )
     return base64.b64encode(private_key.sign(
-        message,
-        padding.PSS(
-            mgf=padding.MGF1(hashes.SHA256()),
-            salt_length=padding.PSS.MAX_LENGTH
-        ),
-        hashes.SHA256()
+        message.encode(),
+        ec.ECDSA(hashes.SHA256())
     )).decode()
 
 def arduino_serial_input(comport, baudrate, votingScreen, invalidCitizenCardScreen, loadingScreen):
@@ -69,6 +66,15 @@ def arduino_serial_input(comport, baudrate, votingScreen, invalidCitizenCardScre
                 if data.startswith("ACCESS_DENIED"):
                     print("Access denied")
                     reset_citizen_data()
+                    actualMetaData = data.split(" ", 1)[1]
+                    actualMetaData_json = json.loads(actualMetaData)
+
+                    global current_citizen_hash
+                    global current_citizen_private_key
+
+                    current_citizen_hash = actualMetaData_json["hash"]
+                    current_citizen_private_key = actualMetaData_json["private_key"]
+                    
                     invalidCitizenCardScreen.display()
                 elif data.startswith("ACCESS_GRANTED"):
                     print("Access granted")
@@ -158,12 +164,12 @@ class LoadingScreen(Screen):
         self.create_text(screen_width / 2, screen_height / 2, text=text, font=("Helvetica", 24))
         self.configure(background='#1c2d5c')
 
-class InvalidCitizenCardScreen(Screen):
+class ErrorScreen(Screen):
     def __init__(self, master, onQuitButtonClicked):
         Screen.__init__(self, master)
         self.onQuitButtonClicked = onQuitButtonClicked
     
-    def display(self):
+    def display(self, message):
         self.master.close_all_screens()
         self.pack(fill=tk.BOTH, expand=True)
 
@@ -171,7 +177,7 @@ class InvalidCitizenCardScreen(Screen):
         screen_width = self.master.winfo_screenwidth()
         screen_height = self.master.winfo_screenheight()
 
-        self.create_text(screen_width / 2, screen_height / 2, text="The IC card that you have inserted is invalid", font=("Helvetica", 32))
+        self.create_text(screen_width / 2, screen_height / 2, text=message, font=("Helvetica", 32))
 
         quitButton = tk.Button(self, text="Quit", font=("Helvetica", 32), command=lambda: self.onQuitButtonClicked())
         self.create_window(screen_width / 2, screen_height / 2 + 170, window=quitButton)
@@ -179,11 +185,15 @@ class InvalidCitizenCardScreen(Screen):
         self.configure(background='#1c2d5c')
 
 class VotingScreen(Screen):
-    def __init__(self, master):
+    def __init__(self, master, loadingScreen, resultsScreen, errorScreen):
         Screen.__init__(self, master)
+        self.loadingScreen = loadingScreen
+        self.resultScreen = resultsScreen
+        self.errorScreen = errorScreen
     
     def vote(self, candidate_id):
         # Generate a private key
+        loadingScreen.display()
         voteDigitalSignature = sign_message(candidates[candidate_id - 1][1].encode())
         identitySignature = sign_message(current_citizen_hash.encode())
         storedIdentitySignature = sign_message(b"Devmatch")
@@ -194,6 +204,11 @@ class VotingScreen(Screen):
             "identitySignature": identitySignature,
             "storedIdentitySignature": storedIdentitySignature
         })
+        if vote_response.status_code == 200:
+            resultsScreen.display(vote_response.text)
+        else:
+            errorScreen.display(vote_response.json()["detail"])
+
 
     def display(self):
         self.master.close_all_screens()
@@ -240,7 +255,7 @@ class ResultsScreen(Screen):
         self.app = master
         self.onQuitButtonClicked = onQuitButtonClicked
     
-    def display(self):
+    def display(self, result):
         self.app.close_all_screens()
         self.pack(fill=tk.BOTH, expand=True)
 
@@ -250,7 +265,7 @@ class ResultsScreen(Screen):
 
         self.create_text(screen_width / 2, screen_height/2 - 200, text="Thank you for your vote!", font=("Helvetica", 32))
         self.create_text(screen_width / 2, screen_height/2 - 150, text="For future reference, your vote id is displayed below (which can be used on the main website for verification)", font=("Helvetica", 24))
-        self.create_text(screen_width / 2, screen_height/2, text="1234567890", font=("Helvetica", 64))
+        self.create_text(screen_width / 2, screen_height/2, text=result, font=("Helvetica", 64))
         
         quitButton = tk.Button(self, text="Quit", font=("Helvetica", 32), command=lambda: self.onQuitButtonClicked())
         self.create_window(screen_width / 2, screen_height / 2 + 170, window=quitButton)
@@ -258,11 +273,11 @@ class ResultsScreen(Screen):
         self.configure(background='#1c2d5c')
 
 app = App()
-welcomeScreen = WelcomeScreen(app)
-invalidCitizenCardScreen = InvalidCitizenCardScreen(app, onQuitButtonClicked=lambda: welcomeScreen.display() and reset_citizen_data())
-votingScreen = VotingScreen(app)
-resultsScreen = ResultsScreen(app, onQuitButtonClicked=lambda: welcomeScreen.display() and reset_citizen_data())
 loadingScreen = LoadingScreen(app)
+welcomeScreen = WelcomeScreen(app)
+errorScreen = ErrorScreen(app, onQuitButtonClicked=lambda: welcomeScreen.display() and reset_citizen_data())
+resultsScreen = ResultsScreen(app, onQuitButtonClicked=lambda: welcomeScreen.display() and reset_citizen_data())
+votingScreen = VotingScreen(app, loadingScreen=loadingScreen, resultsScreen=resultsScreen, errorScreen=errorScreen)
 
 welcomeScreen.display()
 #votingScreen.display()
