@@ -13,6 +13,8 @@
     - Loading Screen
     - Error Screen
     - Candidate Choosing Screen
+      <img width="1440" alt="image" src="https://github.com/user-attachments/assets/88365672-d15a-40c9-8f55-e4c903ceb015">
+
     - Receipt Screen
 
 ## How To Run
