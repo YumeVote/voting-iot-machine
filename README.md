@@ -8,6 +8,8 @@
 
 1. An emulated User Interface that acts as the GUI of the POS machine which displays:
     - A Welcome Screen
+      <img width="1440" alt="image" src="https://github.com/user-attachments/assets/7c35a203-137b-4f88-9b1d-5bcb2dfd1686">
+
     - Loading Screen
     - Error Screen
     - Candidate Choosing Screen
