@@ -1,0 +1,5 @@
+# This directory is a Syncthing folder marker.
+# Do not delete.
+
+folderID: exnyv-jrxal
+created: 2024-08-17T22:04:55+08:00

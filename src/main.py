@@ -11,6 +11,8 @@ import requests
 import os
 import urllib.request
 import base64
+import serial
+import threading
 
 load_dotenv()
 
@@ -33,6 +35,7 @@ gif_animation_started = False
 
 current_citizen_hash = None
 current_citizen_private_key = None
+arduino_serial_input_thread = None
 
 def reset_citizen_data():
     global current_citizen_hash
@@ -55,6 +58,26 @@ def sign_message(message):
         ),
         hashes.SHA256()
     )).decode()
+
+def arduino_serial_input(comport, baudrate, votingScreen, invalidCitizenCardScreen, loadingScreen):
+    global arduino_serial_input_thread
+    def read_serial():
+        ser = serial.Serial(comport, baudrate, timeout=0.1)
+        while True:
+            data = ser.readline().decode().strip()
+            if data:
+                if data.startswith("ACCESS_DENIED"):
+                    print("Access denied")
+                    reset_citizen_data()
+                    invalidCitizenCardScreen.display()
+                elif data.startswith("ACCESS_GRANTED"):
+                    print("Access granted")
+                    votingScreen.display()
+                elif data.startswith("CARD_READING"):
+                    loadingScreen.display("Please wait...Your card is being read")
+
+    arduino_serial_input_thread = threading.Thread(target=read_serial)
+    arduino_serial_input_thread.start()
 
 class App(tk.Tk):
     screens = []
@@ -118,6 +141,41 @@ class WelcomeScreen(Screen):
 
         self.create_text(screen_width / 2, screen_height / 2 - 50, text="Devmatch Government 2024 Election", font=("Helvetica", 32))
         self.create_text(screen_width / 2, screen_height / 2, text="Please insert your card to vote", font=("Helvetica", 24))
+        self.configure(background='#1c2d5c')
+
+class LoadingScreen(Screen):
+    def __init__(self, master):
+        Screen.__init__(self, master)
+    
+    def display(self, text):
+        self.master.close_all_screens()
+        self.pack(fill=tk.BOTH, expand=True)
+
+        # Get the width and height of the screen
+        screen_width = self.master.winfo_screenwidth()
+        screen_height = self.master.winfo_screenheight()
+        
+        self.create_text(screen_width / 2, screen_height / 2, text=text, font=("Helvetica", 24))
+        self.configure(background='#1c2d5c')
+
+class InvalidCitizenCardScreen(Screen):
+    def __init__(self, master, onQuitButtonClicked):
+        Screen.__init__(self, master)
+        self.onQuitButtonClicked = onQuitButtonClicked
+    
+    def display(self):
+        self.master.close_all_screens()
+        self.pack(fill=tk.BOTH, expand=True)
+
+        # Get the width and height of the screen
+        screen_width = self.master.winfo_screenwidth()
+        screen_height = self.master.winfo_screenheight()
+
+        self.create_text(screen_width / 2, screen_height / 2, text="The IC card that you have inserted is invalid", font=("Helvetica", 32))
+
+        quitButton = tk.Button(self, text="Quit", font=("Helvetica", 32), command=lambda: self.onQuitButtonClicked())
+        self.create_window(screen_width / 2, screen_height / 2 + 170, window=quitButton)
+
         self.configure(background='#1c2d5c')
 
 class VotingScreen(Screen):
@@ -201,11 +259,21 @@ class ResultsScreen(Screen):
 
 app = App()
 welcomeScreen = WelcomeScreen(app)
+invalidCitizenCardScreen = InvalidCitizenCardScreen(app, onQuitButtonClicked=lambda: welcomeScreen.display() and reset_citizen_data())
 votingScreen = VotingScreen(app)
 resultsScreen = ResultsScreen(app, onQuitButtonClicked=lambda: welcomeScreen.display() and reset_citizen_data())
+loadingScreen = LoadingScreen(app)
 
 welcomeScreen.display()
-votingScreen.display()
+#votingScreen.display()
 #resultsScreen.display()
 
+arduino_serial_input('/dev/cu.usbserial-FTB6SPL3', 9600, votingScreen, invalidCitizenCardScreen, loadingScreen)
+
+def onQuit():
+    global arduino_serial_input_thread
+    arduino_serial_input_thread.join()
+    app.quit()
+
+app.protocol("WM_DELETE_WINDOW", onQuit)
 app.mainloop()
