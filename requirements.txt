@@ -4,3 +4,4 @@ python-dotenv
 cryptography
 requests
 pillow
+pyserial
