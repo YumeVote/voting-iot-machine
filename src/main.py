@@ -1,11 +1,16 @@
 import io
 from PIL import Image, ImageTk
 from dotenv import load_dotenv
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives.asymmetric import padding
+from cryptography.hazmat.primitives import hashes
 
 import tkinter as tk
 import requests
 import os
 import urllib.request
+import base64
 
 load_dotenv()
 
@@ -25,6 +30,31 @@ for i, candidate in enumerate(candidates):
         f.write(raw_data)
 
 gif_animation_started = False
+
+current_citizen_hash = None
+current_citizen_private_key = None
+
+def reset_citizen_data():
+    global current_citizen_hash
+    global current_citizen_private_key
+    current_citizen_hash = None
+    current_citizen_private_key = None
+
+def sign_message(message):
+    global current_citizen_private_key
+    private_key = serialization.load_pem_private_key(
+        current_citizen_private_key.encode(),
+        password=None,
+        backend=default_backend()
+    )
+    return base64.b64encode(private_key.sign(
+        message,
+        padding.PSS(
+            mgf=padding.MGF1(hashes.SHA256()),
+            salt_length=padding.PSS.MAX_LENGTH
+        ),
+        hashes.SHA256()
+    )).decode()
 
 class App(tk.Tk):
     screens = []
@@ -95,7 +125,17 @@ class VotingScreen(Screen):
         Screen.__init__(self, master)
     
     def vote(self, candidate_id):
-        print(f"Voted for candidate {candidate_id}")
+        # Generate a private key
+        voteDigitalSignature = sign_message(candidates[candidate_id - 1][1].encode())
+        identitySignature = sign_message(current_citizen_hash.encode())
+        storedIdentitySignature = sign_message(b"Devmatch")
+        vote_response = requests.post(VOTING_SYSTEM_API_BASE + "/vote", params={
+            "candidate_id": candidate_id,
+            "vote": candidates[candidate_id - 1][1],
+            "voteDigitalSignature": voteDigitalSignature,
+            "identitySignature": identitySignature,
+            "storedIdentitySignature": storedIdentitySignature
+        })
 
     def display(self):
         self.master.close_all_screens()
@@ -162,7 +202,7 @@ class ResultsScreen(Screen):
 app = App()
 welcomeScreen = WelcomeScreen(app)
 votingScreen = VotingScreen(app)
-resultsScreen = ResultsScreen(app, onQuitButtonClicked=lambda: welcomeScreen.display())
+resultsScreen = ResultsScreen(app, onQuitButtonClicked=lambda: welcomeScreen.display() and reset_citizen_data())
 
 welcomeScreen.display()
 votingScreen.display()
