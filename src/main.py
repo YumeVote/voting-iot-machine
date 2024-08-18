@@ -46,11 +46,8 @@ def reset_citizen_data():
 
 def sign_message(message):
     global current_citizen_private_key
-    private_key = serialization.load_pem_private_key(
-        current_citizen_private_key.encode(),
-        password=None,
-        backend=default_backend()
-    )
+    private_key = ec.derive_private_key(current_citizen_private_key, ec.SECP256R1(), default_backend())
+
     return base64.b64encode(private_key.sign(
         message.encode(),
         ec.ECDSA(hashes.SHA256())
@@ -76,10 +73,25 @@ def arduino_serial_input(comport, baudrate, votingScreen, invalidCitizenCardScre
                     current_citizen_private_key = base64.b64decode(actualMetaData_json["private_key"])
                     
                     invalidCitizenCardScreen.display()
+                elif data.startswith("ACCESS_GRANTED_PRIVATE_KEY"):
+                    print("Access granted add private key")
+                    privateKey = data.split(" ", 1)[1]
+
+                    global current_citizen_private_key
+
+                    current_citizen_private_key = int(privateKey)
+                elif data.startswith("ACCESS_GRANTED_HASH"):
+                    print("Access granted add hash")
+                    hash = data.split(" ", 1)[1]
+
+                    global current_citizen_hash
+
+                    current_citizen_hash = hash
                 elif data.startswith("ACCESS_GRANTED"):
                     print("Access granted")
                     votingScreen.display()
                 elif data.startswith("CARD_READING"):
+                    reset_citizen_data()
                     loadingScreen.display("Please wait...Your card is being read")
 
     arduino_serial_input_thread = threading.Thread(target=read_serial)
@@ -194,6 +206,7 @@ class VotingScreen(Screen):
     def vote(self, candidate_id):
         # Generate a private key
         loadingScreen.display()
+
         voteDigitalSignature = sign_message(candidates[candidate_id - 1][1].encode())
         identitySignature = sign_message(current_citizen_hash.encode())
         storedIdentitySignature = sign_message(b"Devmatch")
