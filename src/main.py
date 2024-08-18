@@ -45,11 +45,13 @@ def reset_citizen_data():
     current_citizen_private_key = None
 
 def sign_message(message):
+    print(message)
     global current_citizen_private_key
-    private_key = ec.derive_private_key(current_citizen_private_key, ec.SECP256R1(), default_backend())
+    print(current_citizen_private_key)
+    private_key = ec.derive_private_key(int(current_citizen_private_key), ec.SECP256R1(), default_backend())
 
     return base64.b64encode(private_key.sign(
-        message.encode(),
+        message,
         ec.ECDSA(hashes.SHA256())
     )).decode()
 
@@ -57,7 +59,12 @@ def arduino_serial_input(comport, baudrate, votingScreen, invalidCitizenCardScre
     global arduino_serial_input_thread
     global current_citizen_hash
     global current_citizen_private_key
+
     def read_serial():
+        global arduino_serial_input_thread
+        global current_citizen_hash
+        global current_citizen_private_key
+        
         ser = serial.Serial(comport, baudrate, timeout=0.1)
         while True:
             data = ser.readline().decode().strip()
@@ -65,23 +72,17 @@ def arduino_serial_input(comport, baudrate, votingScreen, invalidCitizenCardScre
                 if data.startswith("ACCESS_DENIED"):
                     print("Access denied")
                     reset_citizen_data()
-                    actualMetaData = data.split(" ", 1)[1]
-                    actualMetaData_json = json.loads(actualMetaData)
-
-                    current_citizen_hash = actualMetaData_json["hash"]
-                    current_citizen_private_key = base64.b64decode(actualMetaData_json["private_key"])
-                    
                     invalidCitizenCardScreen.display()
                 elif data.startswith("ACCESS_GRANTED_PRIVATE_KEY"):
                     print("Access granted add private key")
-                    privateKeyHex = [data.split(" ", 1)[1][i:i+2] for i in range(0, len(data.split(" ", 1)[1]), 2)]
+                    privateKeyHex = [data.split(" ", 1)[1][i:i+2] for i in range(0, len(data.split(" ", 1)[1]), 2) if len(data.split(" ", 1)[1]) % 2 == 0]
                     result = ""
                     for hexData in privateKeyHex:
                         if hexData == "00":
                             break
                         result += chr(int(hexData, 16))
-
-                    current_citizen_private_key = int(result)
+                    current_citizen_private_key = result
+                    print(current_citizen_private_key)
                 elif data.startswith("ACCESS_GRANTED_HASH"):
                     print("Access granted add hash")
                     hash = data.split(" ", 1)[1]
@@ -91,7 +92,6 @@ def arduino_serial_input(comport, baudrate, votingScreen, invalidCitizenCardScre
                     print("Access granted")
                     votingScreen.display()
                 elif data.startswith("CARD_READING"):
-                    reset_citizen_data()
                     loadingScreen.display("Please wait...Your card is being read")
 
     arduino_serial_input_thread = threading.Thread(target=read_serial)
@@ -205,12 +205,12 @@ class VotingScreen(Screen):
     
     def vote(self, candidate_id):
         # Generate a private key
-        loadingScreen.display()
+        loadingScreen.display("Trying to vote")
 
         voteDigitalSignature = sign_message(candidates[candidate_id - 1][1].encode())
         identitySignature = sign_message(current_citizen_hash.encode())
         storedIdentitySignature = sign_message(b"Devmatch")
-        vote_response = requests.post(VOTING_SYSTEM_API_BASE + "/vote", params={
+        vote_response = requests.post(VOTING_SYSTEM_API_BASE + "/vote", json={
             "candidate_id": candidate_id,
             "vote": candidates[candidate_id - 1][1],
             "voteDigitalSignature": voteDigitalSignature,
@@ -292,8 +292,8 @@ errorScreen = ErrorScreen(app, onQuitButtonClicked=lambda: welcomeScreen.display
 resultsScreen = ResultsScreen(app, onQuitButtonClicked=lambda: welcomeScreen.display() and reset_citizen_data())
 votingScreen = VotingScreen(app, loadingScreen=loadingScreen, resultsScreen=resultsScreen, errorScreen=errorScreen)
 
-#welcomeScreen.display()
-votingScreen.display()
+welcomeScreen.display()
+#votingScreen.display()
 #resultsScreen.display()
 
 arduino_serial_input('/dev/cu.usbserial-FTB6SPL3', 9600, votingScreen, errorScreen, loadingScreen)
