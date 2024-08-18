@@ -55,6 +55,8 @@ def sign_message(message):
 
 def arduino_serial_input(comport, baudrate, votingScreen, invalidCitizenCardScreen, loadingScreen):
     global arduino_serial_input_thread
+    global current_citizen_hash
+    global current_citizen_private_key
     def read_serial():
         ser = serial.Serial(comport, baudrate, timeout=0.1)
         while True:
@@ -65,9 +67,6 @@ def arduino_serial_input(comport, baudrate, votingScreen, invalidCitizenCardScre
                     reset_citizen_data()
                     actualMetaData = data.split(" ", 1)[1]
                     actualMetaData_json = json.loads(actualMetaData)
-
-                    global current_citizen_hash
-                    global current_citizen_private_key
 
                     current_citizen_hash = actualMetaData_json["hash"]
                     current_citizen_private_key = base64.b64decode(actualMetaData_json["private_key"])
@@ -81,14 +80,11 @@ def arduino_serial_input(comport, baudrate, votingScreen, invalidCitizenCardScre
                         if hexData == "00":
                             break
                         result += chr(int(hexData, 16))
-                    global current_citizen_private_key
 
                     current_citizen_private_key = int(result)
                 elif data.startswith("ACCESS_GRANTED_HASH"):
                     print("Access granted add hash")
                     hash = data.split(" ", 1)[1]
-
-                    global current_citizen_hash
 
                     current_citizen_hash = hash
                 elif data.startswith("ACCESS_GRANTED"):
