@@ -75,11 +75,15 @@ def arduino_serial_input(comport, baudrate, votingScreen, invalidCitizenCardScre
                     invalidCitizenCardScreen.display()
                 elif data.startswith("ACCESS_GRANTED_PRIVATE_KEY"):
                     print("Access granted add private key")
-                    privateKey = data.split(" ", 1)[1]
-
+                    privateKeyHex = [data.split(" ", 1)[1][i:i+2] for i in range(0, len(data.split(" ", 1)[1]), 2)]
+                    result = ""
+                    for hexData in privateKeyHex:
+                        if hexData == "00":
+                            break
+                        result += chr(int(hexData, 16))
                     global current_citizen_private_key
 
-                    current_citizen_private_key = int(privateKey)
+                    current_citizen_private_key = int(result)
                 elif data.startswith("ACCESS_GRANTED_HASH"):
                     print("Access granted add hash")
                     hash = data.split(" ", 1)[1]
